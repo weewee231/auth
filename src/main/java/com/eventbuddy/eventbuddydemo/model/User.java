@@ -33,6 +33,9 @@ public class User implements UserDetails {
 
     private String username;
 
+    @Column(nullable = false)
+    private String password; // Добавляем поле password
+
     @Column(name = "verification_code")
     private String verificationCode;
 
@@ -45,14 +48,18 @@ public class User implements UserDetails {
     @Column(name = "refresh_token_expires_at")
     private LocalDateTime refreshTokenExpiresAt;
 
-    private boolean enabled = true;
+    private boolean enabled = false; // По умолчанию false до подтверждения
 
     public User() {}
 
-    public User(String email, UserRole role) {
+    // Обновленный конструктор с паролем
+    public User(String email, UserRole role, String password, String username) {
         this.email = email;
         this.role = role;
+        this.password = password;
+        this.username = username;
         this.uuid = UUID.randomUUID().toString();
+        this.enabled = false; // По умолчанию неактивен
     }
 
     @Override
@@ -62,7 +69,7 @@ public class User implements UserDetails {
 
     @Override
     public String getPassword() {
-        return null;
+        return this.password; // Возвращаем реальный пароль
     }
 
     @Override
@@ -91,6 +98,6 @@ public class User implements UserDetails {
     }
 
     public enum UserRole {
-        INDIVIDUAL, COMPANY, ADMIN
+        INDIVIDUAL, COMPANY // Только две роли
     }
 }

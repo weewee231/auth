@@ -2,87 +2,54 @@ package com.eventbuddy.eventbuddydemo.controller;
 
 import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
-import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
+import com.eventbuddy.eventbuddydemo.responses.LoginResponse;
 import com.eventbuddy.eventbuddydemo.service.AuthenticationService;
 import com.eventbuddy.eventbuddydemo.service.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @RequestMapping("/auth")
 @RestController
 public class AuthenticationController {
-
-    private final AuthenticationService authenticationService;
     private final JwtService jwtService;
+    private final AuthenticationService authenticationService;
 
-    public AuthenticationController(AuthenticationService authenticationService, JwtService jwtService) {
-        this.authenticationService = authenticationService;
+    public AuthenticationController(JwtService jwtService, AuthenticationService authenticationService) {
         this.jwtService = jwtService;
+        this.authenticationService = authenticationService;
     }
 
+    @PostMapping("/signup")
+    public ResponseEntity<User> register(@RequestBody RegisterUserDto registerUserDto) {
+        User registeredUser = authenticationService.signup(registerUserDto);
+        return ResponseEntity.ok(registeredUser);
+    }
 
-    @PostMapping("/send-code")
-    public ResponseEntity<?> sendCode(@RequestBody SendCodeRequest request) {
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> authenticate(@RequestBody LoginUserDto loginUserDto){
+        User authenticatedUser = authenticationService.authenticate(loginUserDto);
+        String jwtToken = jwtService.generateToken(authenticatedUser);
+        LoginResponse loginResponse = new LoginResponse(jwtToken, jwtService.getExpirationTime());
+        return ResponseEntity.ok(loginResponse);
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
         try {
-            authenticationService.sendCode(request);
-            return ResponseEntity.ok().body(Map.of("message", "Код отправлен на email"));
+            authenticationService.verifyUser(verifyUserDto);
+            return ResponseEntity.ok("Аккаунт успешно подтвержден");
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
-
-    @PostMapping("/verify-code")
-    public ResponseEntity<?> verifyCode(@RequestBody VerifyCodeRequest request) {
+    @PostMapping("/resend")
+    public ResponseEntity<?> resendVerificationCode(@RequestParam String email) {
         try {
-            AuthResponse response = authenticationService.verifyCode(request);
-            return ResponseEntity.ok(response);
+            authenticationService.resendVerificationCode(email);
+            return ResponseEntity.ok("Код подтверждения отправлен");
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-    }
-
-
-    @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest request) {
-        try {
-            AuthResponse response = authenticationService.refreshToken(request.getRefreshToken());
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(403).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-
-    @PutMapping("/update-user")
-    public ResponseEntity<?> updateUser(
-            @RequestBody UpdateUserRequest request,
-
-            @RequestHeader("Authorization") String authHeader
-    ) {
-        try {
-
-            String token = authHeader.substring(7);
-            String email = jwtService.extractUsername(token);
-
-
-            User user = (User) authenticationService.loadUserByUsername(email);
-            if (!jwtService.isTokenValid(token, user)) {
-                return ResponseEntity.status(403).body(Map.of("error", "Невалидный access token"));
-            }
-
-            User updatedUser = authenticationService.updateUser(email, request);
-            return ResponseEntity.ok(updatedUser);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-
-    private User loadUserByUsername(String email) {
-
-        return authenticationService.loadUserByUsername(email);
     }
 }

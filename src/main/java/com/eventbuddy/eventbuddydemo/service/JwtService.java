@@ -17,15 +17,11 @@ import java.util.function.Function;
 
 @Service
 public class JwtService {
-
     @Value("${security.jwt.secret-key}")
     private String secretKey;
 
-    @Value("${security.jwt.access-expiration-time:3600000}") // 1 час
-    private long accessExpiration;
-
-    @Value("${security.jwt.refresh-expiration-time:2592000000}") // 30 дней
-    private long refreshExpiration;
+    @Value("${security.jwt.expiration-time}")
+    private long jwtExpiration;
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -36,28 +32,16 @@ public class JwtService {
         return claimsResolver.apply(claims);
     }
 
-    public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, accessExpiration);
+    public String generateToken(UserDetails userDetails) {
+        return generateToken(new HashMap<>(), userDetails);
     }
 
-    public String generateRefreshToken(UserDetails userDetails) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("token_type", "refresh");
-        return buildToken(claims, userDetails, refreshExpiration);
+    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        return buildToken(extraClaims, userDetails, jwtExpiration);
     }
 
-    public boolean isRefreshTokenValid(String token) {
-        try {
-            String tokenType = extractClaim(token, claims -> claims.get("token_type", String.class));
-            return "refresh".equals(tokenType) && !isTokenExpired(token);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    public long getExpirationTime() {
+        return jwtExpiration;
     }
 
     private String buildToken(
@@ -73,6 +57,11 @@ public class JwtService {
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {
@@ -95,9 +84,5 @@ public class JwtService {
     private Key getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
-    }
-
-    public long getAccessExpirationTime() {
-        return accessExpiration;
     }
 }

@@ -52,4 +52,22 @@ public class AuthenticationController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String jwt = authHeader.substring(7);
+                String userEmail = jwtService.extractUsername(jwt);
+
+                authenticationService.logout(userEmail);
+
+                return ResponseEntity.ok("Успешный выход из системы");
+            }
+            return ResponseEntity.badRequest().body("Неверный токен");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Ошибка при выходе: " + e.getMessage());
+        }
+    }
 }

@@ -1,8 +1,6 @@
 package com.eventbuddy.eventbuddydemo.service;
 
-import com.eventbuddy.eventbuddydemo.dto.LoginUserDto;
-import com.eventbuddy.eventbuddydemo.dto.RegisterUserDto;
-import com.eventbuddy.eventbuddydemo.dto.VerifyUserDto;
+import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
 import com.eventbuddy.eventbuddydemo.repository.UserRepository;
 import jakarta.mail.MessagingException;
@@ -14,7 +12,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Random;
-
 
 @Service
 public class AuthenticationService {
@@ -68,7 +65,6 @@ public class AuthenticationService {
         return user;
     }
 
-    // ДОБАВЬТЕ ЭТОТ МЕТОД
     public void verifyUser(VerifyUserDto input) {
         Optional<User> optionalUser = userRepository.findByEmail(input.getEmail());
         if (optionalUser.isPresent()) {
@@ -93,7 +89,6 @@ public class AuthenticationService {
         }
     }
 
-    // И ЭТОТ МЕТОД
     public void resendVerificationCode(String email) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         if (optionalUser.isPresent()) {
@@ -108,6 +103,19 @@ public class AuthenticationService {
         } else {
             throw new RuntimeException("Пользователь не найден");
         }
+    }
+
+    // ДОБАВЛЕН МЕТОД LOGOUT
+    public void logout(String email) {
+        Optional<User> optionalUser = userRepository.findByEmail(email);
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
+            // Очищаем refresh token (если используется)
+            user.setRefreshToken(null);
+            user.setRefreshTokenExpiresAt(null);
+            userRepository.save(user);
+        }
+        // JWT токены stateless, так что на стороне сервера просто отмечаем что пользователь вышел
     }
 
     private void sendVerificationEmail(User user) {

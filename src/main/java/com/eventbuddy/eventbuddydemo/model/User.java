@@ -48,6 +48,12 @@ public class User implements UserDetails {
     @Column(name = "refresh_token_expires_at")
     private LocalDateTime refreshTokenExpiresAt;
 
+    @Column(name = "reset_password_code")
+    private String resetPasswordCode;
+
+    @Column(name = "reset_password_code_expires_at")
+    private LocalDateTime resetPasswordCodeExpiresAt;
+
     private boolean enabled = false;
 
     public User() {}
@@ -105,6 +111,17 @@ public class User implements UserDetails {
     public void invalidateRefreshToken() {
         this.refreshToken = null;
         this.refreshTokenExpiresAt = null;
+    }
+
+    public boolean isResetPasswordCodeValid() {
+        return resetPasswordCode != null &&
+                resetPasswordCodeExpiresAt != null &&
+                resetPasswordCodeExpiresAt.isAfter(LocalDateTime.now());
+    }
+
+    public void invalidateResetPasswordCode() {
+        this.resetPasswordCode = null;
+        this.resetPasswordCodeExpiresAt = null;
     }
 
     public enum UserRole {

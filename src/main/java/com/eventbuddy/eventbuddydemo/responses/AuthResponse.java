@@ -17,7 +17,7 @@ public class AuthResponse {
         this.expiresIn = expiresIn;
     }
 
-    // Конструктор без refresh token для обратной совместимости
+
     public AuthResponse(String accessToken, long expiresIn) {
         this.accessToken = accessToken;
         this.expiresIn = expiresIn;

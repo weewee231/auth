@@ -77,4 +77,34 @@ public class AuthenticationController {
             return ResponseEntity.badRequest().body("Ошибка при выходе: " + e.getMessage());
         }
     }
+
+    @PostMapping("/recovery/request")
+    public ResponseEntity<?> requestPasswordRecovery(@RequestBody RecoveryRequestDto recoveryRequestDto) {
+        try {
+            authenticationService.requestPasswordRecovery(recoveryRequestDto.getEmail());
+            return ResponseEntity.ok("Код восстановления отправлен на email");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/recovery/reset")
+    public ResponseEntity<?> resetPassword(@RequestBody PasswordResetDto passwordResetDto) {
+        try {
+            authenticationService.resetPassword(passwordResetDto);
+            return ResponseEntity.ok("Пароль успешно изменен");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/recovery/resend")
+    public ResponseEntity<?> resendRecoveryCode(@RequestBody RecoveryRequestDto recoveryRequestDto) {
+        try {
+            authenticationService.resendRecoveryCode(recoveryRequestDto.getEmail());
+            return ResponseEntity.ok("Код восстановления отправлен повторно");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

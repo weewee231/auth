@@ -3,6 +3,7 @@ package com.eventbuddy.eventbuddydemo.service;
 import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
 import com.eventbuddy.eventbuddydemo.repository.UserRepository;
+import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
 import jakarta.mail.MessagingException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -19,17 +20,20 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final EmailService emailService;
+    private final JwtService jwtService;
 
     public AuthenticationService(
             UserRepository userRepository,
             AuthenticationManager authenticationManager,
             PasswordEncoder passwordEncoder,
-            EmailService emailService
+            EmailService emailService,
+            JwtService jwtService
     ) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.jwtService = jwtService;
     }
 
     public User signup(RegisterUserDto input) {
@@ -47,7 +51,7 @@ public class AuthenticationService {
         return userRepository.save(user);
     }
 
-    public User authenticate(LoginUserDto input) {
+    public AuthResponse authenticate(LoginUserDto input) {
         User user = userRepository.findByEmail(input.getEmail())
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
 
@@ -62,7 +66,48 @@ public class AuthenticationService {
                 )
         );
 
-        return user;
+
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+
+        user.setRefreshToken(refreshToken);
+        user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationTime() / 1000));
+        userRepository.save(user);
+
+        return new AuthResponse(accessToken, refreshToken, jwtService.getExpirationTime());
+    }
+
+    public AuthResponse refreshToken(String refreshToken) {
+        if (refreshToken == null) {
+            throw new RuntimeException("Refresh token отсутствует");
+        }
+
+        String userEmail = jwtService.extractUsername(refreshToken);
+        if (userEmail == null) {
+            throw new RuntimeException("Неверный refresh token");
+        }
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+
+        if (!jwtService.isTokenValid(refreshToken, user) ||
+                !refreshToken.equals(user.getRefreshToken()) ||
+                !user.isRefreshTokenValid()) {
+            throw new RuntimeException("Недействительный refresh token");
+        }
+
+
+        String newAccessToken = jwtService.generateToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(user);
+
+
+        user.setRefreshToken(newRefreshToken);
+        user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationTime() / 1000));
+        userRepository.save(user);
+
+        return new AuthResponse(newAccessToken, newRefreshToken, jwtService.getExpirationTime());
     }
 
     public void verifyUser(VerifyUserDto input) {
@@ -70,12 +115,10 @@ public class AuthenticationService {
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
 
-            // Проверяем срок действия кода
             if (user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
                 throw new RuntimeException("Срок действия кода подтверждения истек");
             }
 
-            // Проверяем код
             if (user.getVerificationCode().equals(input.getVerificationCode())) {
                 user.setEnabled(true);
                 user.setVerificationCode(null);
@@ -105,17 +148,14 @@ public class AuthenticationService {
         }
     }
 
-    // ДОБАВЛЕН МЕТОД LOGOUT
     public void logout(String email) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
-            // Очищаем refresh token (если используется)
-            user.setRefreshToken(null);
-            user.setRefreshTokenExpiresAt(null);
+
+            user.invalidateRefreshToken();
             userRepository.save(user);
         }
-        // JWT токены stateless, так что на стороне сервера просто отмечаем что пользователь вышел
     }
 
     private void sendVerificationEmail(User user) {

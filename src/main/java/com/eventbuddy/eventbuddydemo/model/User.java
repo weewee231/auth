@@ -96,6 +96,17 @@ public class User implements UserDetails {
         return enabled;
     }
 
+    public boolean isRefreshTokenValid() {
+        return refreshToken != null &&
+                refreshTokenExpiresAt != null &&
+                refreshTokenExpiresAt.isAfter(LocalDateTime.now());
+    }
+
+    public void invalidateRefreshToken() {
+        this.refreshToken = null;
+        this.refreshTokenExpiresAt = null;
+    }
+
     public enum UserRole {
         INDIVIDUAL, COMPANY
     }

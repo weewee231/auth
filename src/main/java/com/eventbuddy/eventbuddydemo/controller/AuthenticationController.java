@@ -2,7 +2,7 @@ package com.eventbuddy.eventbuddydemo.controller;
 
 import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
-import com.eventbuddy.eventbuddydemo.responses.LoginResponse;
+import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
 import com.eventbuddy.eventbuddydemo.service.AuthenticationService;
 import com.eventbuddy.eventbuddydemo.service.JwtService;
 import org.springframework.http.ResponseEntity;
@@ -26,11 +26,19 @@ public class AuthenticationController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> authenticate(@RequestBody LoginUserDto loginUserDto){
-        User authenticatedUser = authenticationService.authenticate(loginUserDto);
-        String jwtToken = jwtService.generateToken(authenticatedUser);
-        LoginResponse loginResponse = new LoginResponse(jwtToken, jwtService.getExpirationTime());
-        return ResponseEntity.ok(loginResponse);
+    public ResponseEntity<AuthResponse> authenticate(@RequestBody LoginUserDto loginUserDto) {
+        AuthResponse authResponse = authenticationService.authenticate(loginUserDto);
+        return ResponseEntity.ok(authResponse);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+        try {
+            AuthResponse authResponse = authenticationService.refreshToken(refreshTokenRequest.getRefreshToken());
+            return ResponseEntity.ok(authResponse);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(null);
+        }
     }
 
     @PostMapping("/verify")
@@ -52,7 +60,6 @@ public class AuthenticationController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
-
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {

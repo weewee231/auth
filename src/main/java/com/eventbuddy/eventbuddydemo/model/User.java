@@ -67,6 +67,16 @@ public class User implements UserDetails {
         this.enabled = false;
     }
 
+    // Новый конструктор с тремя параметрами
+    public User(String email, UserRole role, String password) {
+        this.email = email;
+        this.role = role;
+        this.password = password;
+        this.username = email.split("@")[0]; // автоматически генерируем username из email
+        this.uuid = UUID.randomUUID().toString();
+        this.enabled = false;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));

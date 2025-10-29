@@ -37,11 +37,15 @@ public class AuthenticationService {
     }
 
     public User signup(RegisterUserDto input) {
+        // Проверяем, существует ли пользователь с таким email
+        if (userRepository.findByEmail(input.getEmail()).isPresent()) {
+            throw new RuntimeException("Пользователь с таким email уже существует");
+        }
+
         User user = new User(
                 input.getEmail(),
                 input.getRole(),
-                passwordEncoder.encode(input.getPassword()),
-                input.getUsername()
+                passwordEncoder.encode(input.getPassword())
         );
 
         user.setVerificationCode(generateVerificationCode());

@@ -5,6 +5,8 @@ import com.eventbuddy.eventbuddydemo.model.User;
 import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
 import com.eventbuddy.eventbuddydemo.service.AuthenticationService;
 import com.eventbuddy.eventbuddydemo.service.JwtService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +30,34 @@ public class AuthenticationController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> authenticate(@RequestBody LoginUserDto loginUserDto) {
         AuthResponse authResponse = authenticationService.authenticate(loginUserDto);
+
+        // Устанавливаем refresh token в httpOnly cookie
+        if (authResponse.getUser().getRefreshToken() != null) {
+            ResponseCookie refreshTokenCookie = ResponseCookie
+                    .from("refreshToken", authResponse.getUser().getRefreshToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("None")
+                    .maxAge(30 * 24 * 60 * 60) // 30 дней
+                    .path("/")
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                    .body(authResponse);
+        }
+
         return ResponseEntity.ok(authResponse);
+    }
+
+    @GetMapping("/login")
+    public ResponseEntity<AuthResponse> autoLogin(@RequestParam String token) {
+        try {
+            AuthResponse authResponse = authenticationService.autoLogin(token);
+            return ResponseEntity.ok(authResponse);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(null);
+        }
     }
 
     @PostMapping("/refresh")
@@ -42,12 +71,12 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<?> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
+    public ResponseEntity<AuthResponse> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
         try {
-            authenticationService.verifyUser(verifyUserDto);
-            return ResponseEntity.ok("Аккаунт успешно подтвержден");
+            AuthResponse authResponse = authenticationService.verifyUser(verifyUserDto);
+            return ResponseEntity.ok(authResponse);
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.badRequest().body(null);
         }
     }
 
@@ -70,7 +99,19 @@ public class AuthenticationController {
 
                 authenticationService.logout(userEmail);
 
-                return ResponseEntity.ok("Успешный выход из системы");
+                // Очищаем refresh token cookie
+                ResponseCookie refreshTokenCookie = ResponseCookie
+                        .from("refreshToken", "")
+                        .httpOnly(true)
+                        .secure(true)
+                        .sameSite("None")
+                        .maxAge(0)
+                        .path("/")
+                        .build();
+
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                        .body("Успешный выход из системы");
             }
             return ResponseEntity.badRequest().body("Неверный токен");
         } catch (Exception e) {

@@ -1,26 +1,17 @@
 package com.eventbuddy.eventbuddydemo.responses;
 
+import com.eventbuddy.eventbuddydemo.model.User;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 public class AuthResponse {
-    private String accessToken;
-    private String refreshToken;
-    private String tokenType = "Bearer";
-    private long expiresIn;
+    private User user;
+    private String token;
 
-    public AuthResponse(String accessToken, String refreshToken, long expiresIn) {
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.expiresIn = expiresIn;
-    }
-
-
-    public AuthResponse(String accessToken, long expiresIn) {
-        this.accessToken = accessToken;
-        this.expiresIn = expiresIn;
-        this.refreshToken = null;
+    public AuthResponse(User user, String token) {
+        this.user = user;
+        this.token = token;
     }
 }

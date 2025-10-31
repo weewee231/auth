@@ -37,7 +37,7 @@ public class AuthenticationService {
     }
 
     public User signup(RegisterUserDto input) {
-        // Проверяем, существует ли пользователь с таким email
+
         if (userRepository.findByEmail(input.getEmail()).isPresent()) {
             throw new RuntimeException("Пользователь с таким email уже существует");
         }
@@ -77,7 +77,7 @@ public class AuthenticationService {
         user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationTime() / 1000));
         userRepository.save(user);
 
-        return new AuthResponse(accessToken, refreshToken, jwtService.getExpirationTime());
+        return new AuthResponse(user, accessToken);
     }
 
     public AuthResponse refreshToken(String refreshToken) {
@@ -106,10 +106,10 @@ public class AuthenticationService {
         user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationTime() / 1000));
         userRepository.save(user);
 
-        return new AuthResponse(newAccessToken, newRefreshToken, jwtService.getExpirationTime());
+        return new AuthResponse(user, newAccessToken);
     }
 
-    public void verifyUser(VerifyUserDto input) {
+    public AuthResponse verifyUser(VerifyUserDto input) {
         Optional<User> optionalUser = userRepository.findByEmail(input.getEmail());
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
@@ -118,16 +118,39 @@ public class AuthenticationService {
                 throw new RuntimeException("Срок действия кода подтверждения истек");
             }
 
-            if (user.getVerificationCode().equals(input.getVerificationCode())) {
+            if (user.getVerificationCode().equals(input.getCode())) {
                 user.setEnabled(true);
                 user.setVerificationCode(null);
                 user.setVerificationCodeExpiresAt(null);
+
+
+                String autoLoginToken = jwtService.generateToken(user);
                 userRepository.save(user);
+
+                return new AuthResponse(user, autoLoginToken);
             } else {
                 throw new RuntimeException("Неверный код подтверждения");
             }
         } else {
             throw new RuntimeException("Пользователь не найден");
+        }
+    }
+
+    public AuthResponse autoLogin(String token) {
+        try {
+            String userEmail = jwtService.extractUsername(token);
+            User user = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+            if (!jwtService.isTokenValid(token, user)) {
+                throw new RuntimeException("Недействительный токен");
+            }
+
+
+            String newToken = jwtService.generateToken(user);
+            return new AuthResponse(user, newToken);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка автологина: " + e.getMessage());
         }
     }
 
@@ -151,7 +174,7 @@ public class AuthenticationService {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
-            // Инвалидируем refresh token
+
             user.invalidateRefreshToken();
             userRepository.save(user);
         }
@@ -186,10 +209,10 @@ public class AuthenticationService {
                 throw new RuntimeException("Срок действия кода восстановления истек");
             }
 
-            if (!user.getResetPasswordCode().equals(passwordResetDto.getResetCode())) {
+
+            if (!user.getResetPasswordCode().equals(passwordResetDto.getCode())) {
                 throw new RuntimeException("Неверный код восстановления");
             }
-
 
             user.setPassword(passwordEncoder.encode(passwordResetDto.getNewPassword()));
             user.invalidateResetPasswordCode();

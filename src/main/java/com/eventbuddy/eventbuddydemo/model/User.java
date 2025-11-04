@@ -42,6 +42,12 @@ public class User implements UserDetails {
     @Column(name = "verification_code_expires_at")
     private LocalDateTime verificationCodeExpiresAt;
 
+    @Column(name = "auto_login_code")
+    private String autoLoginCode;
+
+    @Column(name = "auto_login_code_expires_at")
+    private LocalDateTime autoLoginCodeExpiresAt;
+
     @Column(name = "refresh_token")
     private String refreshToken;
 
@@ -58,21 +64,11 @@ public class User implements UserDetails {
 
     public User() {}
 
-    public User(String email, UserRole role, String password, String username) {
-        this.email = email;
-        this.role = role;
-        this.password = password;
-        this.username = username;
-        this.uuid = UUID.randomUUID().toString();
-        this.enabled = false;
-    }
-
-    // Новый конструктор с тремя параметрами
     public User(String email, UserRole role, String password) {
         this.email = email;
         this.role = role;
         this.password = password;
-        this.username = email.split("@")[0]; // автоматически генерируем username из email
+        this.username = email.split("@")[0];
         this.uuid = UUID.randomUUID().toString();
         this.enabled = false;
     }

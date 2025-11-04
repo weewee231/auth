@@ -3,6 +3,7 @@ package com.eventbuddy.eventbuddydemo.controller;
 import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
 import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
+import com.eventbuddy.eventbuddydemo.responses.VerifyResponse;
 import com.eventbuddy.eventbuddydemo.service.AuthenticationService;
 import com.eventbuddy.eventbuddydemo.service.JwtService;
 import org.springframework.http.HttpHeaders;
@@ -31,14 +32,13 @@ public class AuthenticationController {
     public ResponseEntity<AuthResponse> authenticate(@RequestBody LoginUserDto loginUserDto) {
         AuthResponse authResponse = authenticationService.authenticate(loginUserDto);
 
-        // Устанавливаем refresh token в httpOnly cookie
         if (authResponse.getUser().getRefreshToken() != null) {
             ResponseCookie refreshTokenCookie = ResponseCookie
                     .from("refreshToken", authResponse.getUser().getRefreshToken())
                     .httpOnly(true)
                     .secure(true)
                     .sameSite("None")
-                    .maxAge(30 * 24 * 60 * 60) // 30 дней
+                    .maxAge(30 * 24 * 60 * 60)
                     .path("/")
                     .build();
 
@@ -50,33 +50,54 @@ public class AuthenticationController {
         return ResponseEntity.ok(authResponse);
     }
 
+    @PostMapping("/verify")
+    public ResponseEntity<VerifyResponse> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
+        try {
+            VerifyResponse verifyResponse = authenticationService.verifyUser(verifyUserDto);
+            return ResponseEntity.ok(verifyResponse);
+        } catch (RuntimeException e) {
+            // При ошибке тоже возвращаем простой объект, но с null token
+            return ResponseEntity.badRequest().body(new VerifyResponse(null));
+        }
+    }
+
     @GetMapping("/login")
     public ResponseEntity<AuthResponse> autoLogin(@RequestParam String token) {
         try {
-            AuthResponse authResponse = authenticationService.autoLogin(token);
-            return ResponseEntity.ok(authResponse);
+            AuthResponse authResponse = authenticationService.processAutoLogin(token);
+
+            User user = authResponse.getUser();
+            ResponseCookie refreshTokenCookie = ResponseCookie
+                    .from("refreshToken", user.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .sameSite("None")
+                    .maxAge(30 * 24 * 60 * 60)
+                    .path("/")
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                    .body(authResponse);
+
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(null);
         }
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+    public ResponseEntity<AuthResponse> refreshToken(@CookieValue(name = "refreshToken", required = false) String refreshToken) {
         try {
-            AuthResponse authResponse = authenticationService.refreshToken(refreshTokenRequest.getRefreshToken());
-            return ResponseEntity.ok(authResponse);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null);
-        }
-    }
+            if (refreshToken == null) {
+                return ResponseEntity.status(401).body(null);
+            }
 
-    @PostMapping("/verify")
-    public ResponseEntity<AuthResponse> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
-        try {
-            AuthResponse authResponse = authenticationService.verifyUser(verifyUserDto);
+            AuthResponse authResponse = authenticationService.refreshToken(refreshToken);
+
             return ResponseEntity.ok(authResponse);
+
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(null);
+            return ResponseEntity.status(401).body(null);
         }
     }
 
@@ -99,7 +120,6 @@ public class AuthenticationController {
 
                 authenticationService.logout(userEmail);
 
-                // Очищаем refresh token cookie
                 ResponseCookie refreshTokenCookie = ResponseCookie
                         .from("refreshToken", "")
                         .httpOnly(true)

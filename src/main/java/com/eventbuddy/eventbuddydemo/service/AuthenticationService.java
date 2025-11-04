@@ -4,6 +4,7 @@ import com.eventbuddy.eventbuddydemo.dto.*;
 import com.eventbuddy.eventbuddydemo.model.User;
 import com.eventbuddy.eventbuddydemo.repository.UserRepository;
 import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
+import com.eventbuddy.eventbuddydemo.responses.VerifyResponse;
 import jakarta.mail.MessagingException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,7 +38,6 @@ public class AuthenticationService {
     }
 
     public User signup(RegisterUserDto input) {
-
         if (userRepository.findByEmail(input.getEmail()).isPresent()) {
             throw new RuntimeException("Пользователь с таким email уже существует");
         }
@@ -80,6 +80,78 @@ public class AuthenticationService {
         return new AuthResponse(user, accessToken);
     }
 
+    public VerifyResponse verifyUser(VerifyUserDto input) {
+        Optional<User> optionalUser = userRepository.findByEmail(input.getEmail());
+        if (optionalUser.isPresent()) {
+            User user = optionalUser.get();
+
+            if (user.getVerificationCodeExpiresAt() == null ||
+                    user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
+                throw new RuntimeException("Срок действия кода подтверждения истек");
+            }
+
+            if (user.getVerificationCode().equals(input.getCode())) {
+                user.setEnabled(true);
+                user.setVerificationCode(null);
+                user.setVerificationCodeExpiresAt(null);
+
+                String autoLoginCode = generateAutoLoginCode();
+                user.setAutoLoginCode(autoLoginCode);
+                user.setAutoLoginCodeExpiresAt(LocalDateTime.now().plusMinutes(5));
+                userRepository.save(user);
+
+
+                return new VerifyResponse(autoLoginCode);
+            } else {
+                throw new RuntimeException("Неверный код подтверждения");
+            }
+        } else {
+            throw new RuntimeException("Пользователь не найден");
+        }
+    }
+
+    public AuthResponse processAutoLogin(String autoLoginCode) {
+        Optional<User> optionalUser = userRepository.findByAutoLoginCode(autoLoginCode);
+        User user = optionalUser.orElseThrow(() ->
+                new RuntimeException("Недействительный код автологина")
+        );
+
+        if (user.getAutoLoginCodeExpiresAt() == null ||
+                user.getAutoLoginCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Срок действия кода автологина истек");
+        }
+
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
+        user.setRefreshToken(refreshToken);
+        user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(
+                jwtService.getRefreshExpirationTime() / 1000));
+        user.setAutoLoginCode(null);
+        user.setAutoLoginCodeExpiresAt(null);
+
+        userRepository.save(user);
+
+        return new AuthResponse(user, accessToken);
+    }
+
+    public AuthResponse autoLogin(String token) {
+        try {
+            String userEmail = jwtService.extractUsername(token);
+            User user = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+            if (!jwtService.isTokenValid(token, user)) {
+                throw new RuntimeException("Недействительный токен");
+            }
+
+            String newToken = jwtService.generateToken(user);
+            return new AuthResponse(user, newToken);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка автологина: " + e.getMessage());
+        }
+    }
+
     public AuthResponse refreshToken(String refreshToken) {
         if (refreshToken == null) {
             throw new RuntimeException("Refresh token отсутствует");
@@ -100,59 +172,10 @@ public class AuthenticationService {
         }
 
         String newAccessToken = jwtService.generateToken(user);
-        String newRefreshToken = jwtService.generateRefreshToken(user);
-
-        user.setRefreshToken(newRefreshToken);
-        user.setRefreshTokenExpiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshExpirationTime() / 1000));
-        userRepository.save(user);
 
         return new AuthResponse(user, newAccessToken);
     }
 
-    public AuthResponse verifyUser(VerifyUserDto input) {
-        Optional<User> optionalUser = userRepository.findByEmail(input.getEmail());
-        if (optionalUser.isPresent()) {
-            User user = optionalUser.get();
-
-            if (user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
-                throw new RuntimeException("Срок действия кода подтверждения истек");
-            }
-
-            if (user.getVerificationCode().equals(input.getCode())) {
-                user.setEnabled(true);
-                user.setVerificationCode(null);
-                user.setVerificationCodeExpiresAt(null);
-
-
-                String autoLoginToken = jwtService.generateToken(user);
-                userRepository.save(user);
-
-                return new AuthResponse(user, autoLoginToken);
-            } else {
-                throw new RuntimeException("Неверный код подтверждения");
-            }
-        } else {
-            throw new RuntimeException("Пользователь не найден");
-        }
-    }
-
-    public AuthResponse autoLogin(String token) {
-        try {
-            String userEmail = jwtService.extractUsername(token);
-            User user = userRepository.findByEmail(userEmail)
-                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
-
-            if (!jwtService.isTokenValid(token, user)) {
-                throw new RuntimeException("Недействительный токен");
-            }
-
-
-            String newToken = jwtService.generateToken(user);
-            return new AuthResponse(user, newToken);
-        } catch (Exception e) {
-            throw new RuntimeException("Ошибка автологина: " + e.getMessage());
-        }
-    }
 
     public void resendVerificationCode(String email) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
@@ -174,7 +197,6 @@ public class AuthenticationService {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
-
             user.invalidateRefreshToken();
             userRepository.save(user);
         }
@@ -209,7 +231,6 @@ public class AuthenticationService {
                 throw new RuntimeException("Срок действия кода восстановления истек");
             }
 
-
             if (!user.getResetPasswordCode().equals(passwordResetDto.getCode())) {
                 throw new RuntimeException("Неверный код восстановления");
             }
@@ -218,7 +239,6 @@ public class AuthenticationService {
             user.invalidateResetPasswordCode();
 
             userRepository.save(user);
-
             sendPasswordChangedEmail(user);
         } else {
             throw new RuntimeException("Пользователь не найден");
@@ -242,6 +262,49 @@ public class AuthenticationService {
             sendRecoveryEmail(user, recoveryCode);
         } else {
             throw new RuntimeException("Пользователь с таким email не найден");
+        }
+    }
+
+    private String generateAutoLoginCode() {
+        Random random = new Random();
+        int code = random.nextInt(900000) + 100000;
+        return String.valueOf(code);
+    }
+
+    private String generateVerificationCode() {
+        Random random = new Random();
+        int code = random.nextInt(900000) + 100000;
+        return String.valueOf(code);
+    }
+
+    private String generateRecoveryCode() {
+        Random random = new Random();
+        int code = random.nextInt(900000) + 100000;
+        return String.valueOf(code);
+    }
+
+    private void sendVerificationEmail(User user) {
+        String subject = "Подтверждение аккаунта";
+        String verificationCode = user.getVerificationCode();
+        String htmlMessage = "<html>"
+                + "<body style=\"font-family: Arial, sans-serif;\">"
+                + "<div style=\"background-color: #f5f5f5; padding: 20px;\">"
+                + "<h2 style=\"color: #333;\">Добро пожаловать в EventBuddy!</h2>"
+                + "<p style=\"font-size: 16px;\">Пожалуйста, введите код подтверждения ниже чтобы продолжить:</p>"
+                + "<div style=\"background-color: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);\">"
+                + "<h3 style=\"color: #333;\">Код подтверждения:</h3>"
+                + "<p style=\"font-size: 18px; font-weight: bold; color: #007bff;\">" + verificationCode + "</p>"
+                + "</div>"
+                + "<p style=\"font-size: 14px; margin-top: 20px;\">Роль: " + user.getRole() + "</p>"
+                + "</div>"
+                + "</body>"
+                + "</html>";
+
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), subject, htmlMessage);
+        } catch (MessagingException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Ошибка отправки email: " + e.getMessage());
         }
     }
 
@@ -290,42 +353,5 @@ public class AuthenticationService {
         } catch (MessagingException e) {
             e.printStackTrace();
         }
-    }
-
-    private String generateRecoveryCode() {
-        Random random = new Random();
-        int code = random.nextInt(900000) + 100000;
-        return String.valueOf(code);
-    }
-
-    private void sendVerificationEmail(User user) {
-        String subject = "Подтверждение аккаунта";
-        String verificationCode = user.getVerificationCode();
-        String htmlMessage = "<html>"
-                + "<body style=\"font-family: Arial, sans-serif;\">"
-                + "<div style=\"background-color: #f5f5f5; padding: 20px;\">"
-                + "<h2 style=\"color: #333;\">Добро пожаловать в EventBuddy!</h2>"
-                + "<p style=\"font-size: 16px;\">Пожалуйста, введите код подтверждения ниже чтобы продолжить:</p>"
-                + "<div style=\"background-color: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);\">"
-                + "<h3 style=\"color: #333;\">Код подтверждения:</h3>"
-                + "<p style=\"font-size: 18px; font-weight: bold; color: #007bff;\">" + verificationCode + "</p>"
-                + "</div>"
-                + "<p style=\"font-size: 14px; margin-top: 20px;\">Роль: " + user.getRole() + "</p>"
-                + "</div>"
-                + "</body>"
-                + "</html>";
-
-        try {
-            emailService.sendVerificationEmail(user.getEmail(), subject, htmlMessage);
-        } catch (MessagingException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Ошибка отправки email: " + e.getMessage());
-        }
-    }
-
-    private String generateVerificationCode() {
-        Random random = new Random();
-        int code = random.nextInt(900000) + 100000;
-        return String.valueOf(code);
     }
 }

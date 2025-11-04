@@ -8,10 +8,10 @@ import lombok.Setter;
 @Setter
 public class AuthResponse {
     private User user;
-    private String token;
+    private String accessToken;
 
-    public AuthResponse(User user, String token) {
+    public AuthResponse(User user, String accessToken) {
         this.user = user;
-        this.token = token;
+        this.accessToken = accessToken;
     }
 }

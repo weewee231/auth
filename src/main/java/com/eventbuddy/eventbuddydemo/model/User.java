@@ -60,6 +60,13 @@ public class User implements UserDetails {
     @Column(name = "reset_password_code_expires_at")
     private LocalDateTime resetPasswordCodeExpiresAt;
 
+    // НОВЫЕ ПОЛЯ ДЛЯ RECOVERY TOKEN
+    @Column(name = "recovery_token")
+    private String recoveryToken;
+
+    @Column(name = "recovery_token_expires_at")
+    private LocalDateTime recoveryTokenExpiresAt;
+
     private boolean enabled = false;
 
     public User() {}
@@ -128,6 +135,18 @@ public class User implements UserDetails {
     public void invalidateResetPasswordCode() {
         this.resetPasswordCode = null;
         this.resetPasswordCodeExpiresAt = null;
+    }
+
+
+    public boolean isRecoveryTokenValid() {
+        return recoveryToken != null &&
+                recoveryTokenExpiresAt != null &&
+                recoveryTokenExpiresAt.isAfter(LocalDateTime.now());
+    }
+
+    public void invalidateRecoveryToken() {
+        this.recoveryToken = null;
+        this.recoveryTokenExpiresAt = null;
     }
 
     public enum UserRole {

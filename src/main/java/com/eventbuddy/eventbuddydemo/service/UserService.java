@@ -1,11 +1,11 @@
 package com.eventbuddy.eventbuddydemo.service;
 
-import com.eventbuddy.eventbuddydemo.model.User;
+import com.eventbuddy.eventbuddydemo.dto.UserDto;
 import com.eventbuddy.eventbuddydemo.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 @Service
 public class UserService {
@@ -15,9 +15,9 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    public List<User> allUsers() {
-        List<User> users = new ArrayList<>();
-        userRepository.findAll().forEach(users::add);
-        return users;
+    public List<UserDto> allUsers() {
+        return StreamSupport.stream(userRepository.findAll().spliterator(), false)
+                .map(UserDto::new)
+                .toList();
     }
 }

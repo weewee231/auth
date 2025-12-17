@@ -3,6 +3,8 @@ package com.eventbuddy.eventbuddydemo.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,23 +20,18 @@ import java.util.UUID;
 @Setter
 public class User implements UserDetails {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(unique = true, nullable = false)
-    private String uuid = UUID.randomUUID().toString();
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Column(nullable = false)
+    private String password;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role;
-
-    private String username;
-
-    @Column(nullable = false)
-    private String password;
 
     @Column(name = "verification_code")
     private String verificationCode;
@@ -60,7 +57,6 @@ public class User implements UserDetails {
     @Column(name = "reset_password_code_expires_at")
     private LocalDateTime resetPasswordCodeExpiresAt;
 
-    // НОВЫЕ ПОЛЯ ДЛЯ RECOVERY TOKEN
     @Column(name = "recovery_token")
     private String recoveryToken;
 
@@ -69,14 +65,20 @@ public class User implements UserDetails {
 
     private boolean enabled = false;
 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     public User() {}
 
     public User(String email, UserRole role, String password) {
         this.email = email;
         this.role = role;
         this.password = password;
-        this.username = email.split("@")[0];
-        this.uuid = UUID.randomUUID().toString();
         this.enabled = false;
     }
 
@@ -135,18 +137,6 @@ public class User implements UserDetails {
     public void invalidateResetPasswordCode() {
         this.resetPasswordCode = null;
         this.resetPasswordCodeExpiresAt = null;
-    }
-
-
-    public boolean isRecoveryTokenValid() {
-        return recoveryToken != null &&
-                recoveryTokenExpiresAt != null &&
-                recoveryTokenExpiresAt.isAfter(LocalDateTime.now());
-    }
-
-    public void invalidateRecoveryToken() {
-        this.recoveryToken = null;
-        this.recoveryTokenExpiresAt = null;
     }
 
     public enum UserRole {

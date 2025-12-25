@@ -27,6 +27,9 @@ public class User implements UserDetails {
     private String email;
 
     @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
@@ -75,8 +78,9 @@ public class User implements UserDetails {
 
     public User() {}
 
-    public User(String email, UserRole role, String password) {
+    public User(String email, String name, UserRole role, String password) {
         this.email = email;
+        this.name = name;
         this.role = role;
         this.password = password;
         this.enabled = false;
@@ -94,7 +98,11 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return email; // Spring Security использует email для аутентификации
+    }
+
+    public String getNameField() {
+        return name;
     }
 
     @Override

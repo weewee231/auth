@@ -41,10 +41,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ErrorResponse> handleAuthException(AuthException ex) {
         log.warn("Auth exception: {}", ex.getMessage());
+        if (ex.getField() != null && ex.getFieldMessage() != null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ErrorResponse.of(ex.getMessage(), ex.getField(), ex.getFieldMessage()));
+        }
         String field = ex.getField() != null ? ex.getField() : "error";
-        String message = field.equals("email") || field.equals("password") ? "Ошибка входа" : "Ошибка аутентификации";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(message, field, ex.getMessage()));
+                .body(ErrorResponse.of(ex.getMessage(), field, ex.getMessage()));
     }
 
     @ExceptionHandler(UserNotFoundException.class)

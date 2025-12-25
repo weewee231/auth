@@ -36,11 +36,12 @@ public class AuthenticationService {
 
         if (userRepository.findByEmail(input.getEmail()).isPresent()) {
             log.warn("Signup failed - user already exists with email: {}", input.getEmail());
-            throw new AuthException("Пользователь с таким email уже существует", "email");
+            throw new AuthException("Ошибка регистрации", "email", "Пользователь с таким email уже существует");
         }
 
         User user = new User(
                 input.getEmail(),
+                input.getName(),
                 input.getRole(),
                 passwordEncoder.encode(input.getPassword())
         );
@@ -103,7 +104,6 @@ public class AuthenticationService {
         if (optionalUser.isPresent()) {
             User user = optionalUser.get();
 
-            // Проверяем оба типа кодов: верификация email и восстановление пароля
             boolean isEmailVerification = user.getVerificationCode() != null &&
                     user.getVerificationCode().equals(input.getCode());
 
@@ -113,7 +113,6 @@ public class AuthenticationService {
             if (isEmailVerification) {
                 log.debug("Email verification attempt for: {}", input.getEmail());
 
-                // Верификация email
                 if (user.getVerificationCodeExpiresAt() == null ||
                         user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
                     log.warn("Email verification failed - code expired for: {}", input.getEmail());
@@ -135,7 +134,6 @@ public class AuthenticationService {
             } else if (isPasswordRecovery) {
                 log.debug("Password recovery verification attempt for: {}", input.getEmail());
 
-                // Восстановление пароля - просто проверяем код
                 if (user.getResetPasswordCodeExpiresAt() == null ||
                         user.getResetPasswordCodeExpiresAt().isBefore(LocalDateTime.now())) {
                     log.warn("Password recovery verification failed - code expired for: {}", input.getEmail());
@@ -163,7 +161,6 @@ public class AuthenticationService {
     public AuthResponse processAutoLogin(String token) {
         log.info("Auto-login attempt with token");
 
-        // Сначала проверяем auto-login token (email верификация)
         Optional<User> autoLoginUser = userRepository.findByAutoLoginCode(token);
         if (autoLoginUser.isPresent()) {
             User user = autoLoginUser.get();
@@ -442,9 +439,10 @@ public class AuthenticationService {
         try {
             emailService.sendVerificationEmail(user.getEmail(), subject, htmlMessage);
             log.debug("Verification email sent to: {}", user.getEmail());
-        } catch (MessagingException e) {
-            log.error("Failed to send verification email to: {}", user.getEmail(), e);
-            throw new AuthException("Не удалось отправить письмо", "email");
+        } catch (Exception e) {
+            log.warn("Failed to send verification email to: {} - {}", user.getEmail(), e.getMessage());
+            // В режиме разработки продолжаем без отправки email
+            log.info("Verification code for {}: {}", user.getEmail(), verificationCode);
         }
     }
 

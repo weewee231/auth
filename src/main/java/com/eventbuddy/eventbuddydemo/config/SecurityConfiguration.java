@@ -1,6 +1,5 @@
 package com.eventbuddy.eventbuddydemo.config;
 
-import com.eventbuddy.eventbuddydemo.service.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;

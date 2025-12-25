@@ -5,6 +5,7 @@ import com.eventbuddy.eventbuddydemo.responses.AuthResponse;
 import com.eventbuddy.eventbuddydemo.responses.VerifyResponse;
 import com.eventbuddy.eventbuddydemo.service.AuthenticationService;
 import com.eventbuddy.eventbuddydemo.service.JwtService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -28,14 +29,14 @@ public class AuthenticationController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<UserDto> register(@RequestBody RegisterUserDto registerUserDto) {
+    public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterUserDto registerUserDto) {
         logger.info("POST /auth/signup - registration attempt for: {}", registerUserDto.getEmail());
         UserDto registeredUser = authenticationService.signup(registerUserDto);
         return ResponseEntity.ok(registeredUser);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> authenticate(@RequestBody LoginUserDto loginUserDto) {
+    public ResponseEntity<AuthResponse> authenticate(@Valid @RequestBody LoginUserDto loginUserDto) {
         logger.info("POST /auth/login - login attempt for: {}", loginUserDto.getEmail());
         
         AuthResponse authResponse = authenticationService.authenticate(loginUserDto);
@@ -55,13 +56,13 @@ public class AuthenticationController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<VerifyResponse> verifyUser(@RequestBody VerifyUserDto verifyUserDto) {
+    public ResponseEntity<VerifyResponse> verifyUser(@Valid @RequestBody VerifyUserDto verifyUserDto) {
         logger.info("POST /auth/verify - verification attempt for: {}", verifyUserDto.getEmail());
         VerifyResponse verifyResponse = authenticationService.verifyUser(verifyUserDto);
         return ResponseEntity.ok(verifyResponse);
     }
 
-    @PostMapping("/auto-login")
+    @RequestMapping(value = "/auto-login", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<AuthResponse> autoLogin(@RequestParam String token) {
         logger.info("POST /auth/auto-login - auto-login attempt");
         
@@ -96,12 +97,20 @@ public class AuthenticationController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<Map<String, String>> logout(@CookieValue(name = "refreshToken", required = false) String refreshToken) {
         logger.info("POST /auth/logout - logout attempt");
         
-        String jwt = authHeader.substring(7);
-        String userEmail = jwtService.extractUsername(jwt);
-        authenticationService.logout(userEmail);
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            try {
+                String userEmail = jwtService.extractUsername(refreshToken);
+                if (userEmail != null) {
+                    authenticationService.logout(userEmail);
+                    logger.info("Logout successful for user: {}", userEmail);
+                }
+            } catch (Exception e) {
+                logger.warn("Logout error extracting user from refresh token: {}", e.getMessage());
+            }
+        }
 
         ResponseCookie refreshTokenCookie = ResponseCookie
                 .from("refreshToken", "")
@@ -118,16 +127,23 @@ public class AuthenticationController {
     }
 
     @PostMapping("/recovery")
-    public ResponseEntity<Map<String, String>> requestPasswordRecovery(@RequestBody RecoveryRequestDto recoveryRequestDto) {
+    public ResponseEntity<Map<String, String>> requestPasswordRecovery(@Valid @RequestBody RecoveryRequestDto recoveryRequestDto) {
         logger.info("POST /auth/recovery - password recovery request for: {}", recoveryRequestDto.getEmail());
         authenticationService.requestPasswordRecovery(recoveryRequestDto.getEmail());
         return ResponseEntity.ok(Map.of("message", "Код восстановления отправлен на email"));
     }
 
     @PostMapping("/recovery/resend")
-    public ResponseEntity<Map<String, String>> resendRecoveryCode(@RequestBody RecoveryRequestDto recoveryRequestDto) {
+    public ResponseEntity<Map<String, String>> resendRecoveryCode(@Valid @RequestBody RecoveryRequestDto recoveryRequestDto) {
         logger.info("POST /auth/recovery/resend - resend recovery code for: {}", recoveryRequestDto.getEmail());
         authenticationService.resendRecoveryCode(recoveryRequestDto.getEmail());
         return ResponseEntity.ok(Map.of("message", "Код восстановления отправлен повторно"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody PasswordResetDto passwordResetDto) {
+        logger.info("POST /auth/reset-password - password reset attempt for: {}", passwordResetDto.getEmail());
+        authenticationService.resetPassword(passwordResetDto);
+        return ResponseEntity.ok(Map.of("message", "Пароль успешно изменен"));
     }
 }

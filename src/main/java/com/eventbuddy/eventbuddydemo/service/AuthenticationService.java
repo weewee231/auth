@@ -53,7 +53,7 @@ public class AuthenticationService {
         log.info("Sending verification email to: {}", input.getEmail());
         sendVerificationEmail(user);
 
-        User savedUser = userRepository.save(user);
+        User savedUser = userRepository.saveAndFlush(user);
         log.info("User successfully registered with ID: {}", savedUser.getId());
 
         return new UserDto(savedUser);
@@ -439,10 +439,9 @@ public class AuthenticationService {
         try {
             emailService.sendVerificationEmail(user.getEmail(), subject, htmlMessage);
             log.debug("Verification email sent to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.warn("Failed to send verification email to: {} - {}", user.getEmail(), e.getMessage());
-            // В режиме разработки продолжаем без отправки email
-            log.info("Verification code for {}: {}", user.getEmail(), verificationCode);
+        } catch (MessagingException e) {
+            log.error("Failed to send verification email to: {}", user.getEmail(), e);
+            throw new AuthException("Не удалось отправить письмо", "email");
         }
     }
 

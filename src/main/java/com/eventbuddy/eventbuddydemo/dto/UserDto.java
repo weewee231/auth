@@ -13,6 +13,7 @@ public class UserDto {
     private UUID id;
     private String email;
     private String name;
+    private String avatarUrl;
     private User.UserRole role;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -21,6 +22,7 @@ public class UserDto {
         this.id = user.getId();
         this.email = user.getEmail();
         this.name = user.getNameField();
+        this.avatarUrl = user.getAvatarUrl();
         this.role = user.getRole();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();

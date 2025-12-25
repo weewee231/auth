@@ -51,7 +51,7 @@ public class ProjectService {
                 owner
         );
         
-        Project savedProject = projectRepository.save(project);
+        Project savedProject = projectRepository.saveAndFlush(project);
         log.info("Project created with ID: {}", savedProject.getId());
         
         return new ProjectDto(savedProject);
@@ -71,7 +71,7 @@ public class ProjectService {
         project.setDescription(dto.getDescription());
         project.setDeadline(dto.getDeadline());
         
-        Project updatedProject = projectRepository.save(project);
+        Project updatedProject = projectRepository.saveAndFlush(project);
         log.info("Project updated: {}", id);
         
         return new ProjectDto(updatedProject);

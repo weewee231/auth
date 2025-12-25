@@ -36,6 +36,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private UserRole role;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
     @Column(name = "verification_code")
     private String verificationCode;
 

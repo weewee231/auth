@@ -52,6 +52,14 @@ public class UserController {
         return ResponseEntity.ok(Map.of("avatarUrl", avatarUrl));
     }
 
+    @DeleteMapping("/users/me")
+    public ResponseEntity<Map<String, String>> deleteCurrentUser() {
+        User currentUser = getCurrentUser();
+        log.info("DELETE /users/me - deleting account for user: {}", currentUser.getEmail());
+        userService.deleteCurrentUser(currentUser);
+        return ResponseEntity.ok(Map.of("message", "Аккаунт успешно удален"));
+    }
+
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return (User) authentication.getPrincipal();

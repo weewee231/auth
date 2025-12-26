@@ -76,4 +76,15 @@ public class UserService {
 
         return avatarUrl;
     }
+
+    @Transactional
+    public void deleteCurrentUser(User currentUser) {
+        log.info("Deleting account for user: {}", currentUser.getEmail());
+
+        User user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new AuthException("Пользователь не найден", "id", "Пользователь не найден"));
+
+        userRepository.delete(user);
+        log.info("Account deleted for user: {}", currentUser.getEmail());
+    }
 }
